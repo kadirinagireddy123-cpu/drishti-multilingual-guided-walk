@@ -209,22 +209,52 @@ async function refreshServerInfo(verbose) {
 /* ---------------------------------------------------------- camera */
 const video = $('video'), still = $('still'), overlay = $('overlay'), stage = $('stage');
 
+async function getBestVideoStream() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error('Camera is not available here. Use HTTPS or localhost, or upload a photo.');
+  }
+
+  // 1. Try back/environment camera with preferred resolution
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+  } catch (e1) {}
+
+  // 2. Try front/user camera
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user' },
+      audio: false
+    });
+  } catch (e2) {}
+
+  // 3. Try simplest unconstrained video
+  try {
+    return await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+  } catch (e3) {
+    // Check if hardware camera is actually connected
+    let hasCam = false;
+    try {
+      const devs = await navigator.mediaDevices.enumerateDevices();
+      hasCam = devs.some((d) => d.kind === 'videoinput');
+    } catch {}
+
+    if (!hasCam) {
+      throw new Error('NO_CAMERA_HARDWARE');
+    }
+    throw e3;
+  }
+}
+
 async function startCamera() {
   if (!navigator.mediaDevices?.getUserMedia) return toast('Camera is not available here. Use HTTPS or localhost, or upload a photo.');
   try {
     // Proactively request device microphone permission alongside camera
     requestMicrophonePermission().catch(() => {});
 
-    let stream = null;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false
-      });
-    } catch (e1) {
-      // Fallback for laptop webcams & desktops where environment facingMode fails
-      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-    }
+    const stream = await getBestVideoStream();
     state.stream = stream;
     video.muted = true;
     video.playsInline = true;
@@ -237,7 +267,14 @@ async function startCamera() {
     clearOverlay();
     say('Camera started', { force: true });
   } catch (e) {
-    toast(e.name === 'NotAllowedError' ? 'Camera permission was denied.' : `Could not start the camera: ${e.message}`);
+    if (e.message === 'NO_CAMERA_HARDWARE' || e.name === 'NotFoundError' || (e.message || '').includes('not found')) {
+      toast('📷 No camera found on this device. Click "Upload photo" or open this link on your phone!');
+      say('No camera hardware found. Please click Upload photo or use your phone camera.', { force: true });
+    } else if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+      toast('Camera permission denied. Click the lock/camera icon in your browser address bar to allow.');
+    } else {
+      toast(`Could not start camera: ${e.message}`);
+    }
   }
 }
 function stopCamera() {
