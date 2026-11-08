@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f14">
+<title>Drishti – Voice & Vision Assistant</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+
+<!-- Voice Navigation HUD (Floating real-time voice status) -->
+<aside id="voiceHud" class="voice-hud" aria-live="polite" role="status">
+  <div class="voice-hud-main">
+    <span class="voice-hud-pulse" id="voiceHudPulse"></span>
+    <span id="voiceHudStatus" class="voice-hud-label">🎙️ Voice Mode Active · Listening for commands</span>
+  </div>
+  <div id="voiceHudTranscript" class="voice-hud-transcript" aria-atomic="true"></div>
+</aside>
+
+<!-- Full-screen Voice-First Welcome Overlay (Dismissible/Hidden) -->
+<div id="voiceOverlay" class="voice-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="voiceOverlayTitle">
+  <div class="voice-card">
+    <div class="voice-pulse-circle" aria-hidden="true">
+      <span class="pulse-ring r1"></span>
+      <span class="pulse-ring r2"></span>
+      <span class="pulse-icon">🎙️</span>
+    </div>
+    <h1 id="voiceOverlayTitle">Drishti Voice Assistant</h1>
+    <p class="voice-lead">100% Hands-Free & Spoken Guidance for Visually Impaired Users</p>
+
+    <div class="voice-tap-banner" id="voiceTapBanner">
+      <span class="tap-callout">👆 TAP ANYWHERE ON SCREEN OR PRESS SPACE TO START</span>
+      <p class="tap-hint">Camera, continuous safety scanning, and voice control will start automatically.</p>
+    </div>
+
+    <div class="voice-commands-help">
+      <h2>Natural Voice Commands You Can Speak Anytime:</h2>
+      <div class="voice-grid-cmds">
+        <div class="vcmd"><strong>“Scan” / “What's in front of me?”</strong><span>Immediate obstacle & safety check</span></div>
+        <div class="vcmd"><strong>“Read text” / “Signs”</strong><span>Switches to text & medicine OCR</span></div>
+        <div class="vcmd"><strong>“Currency” / “Money”</strong><span>Banknote denomination reader</span></div>
+        <div class="vcmd"><strong>“Safety” / “Obstacles”</strong><span>Surroundings & sharp hazard scanner</span></div>
+        <div class="vcmd"><strong>“Start walk” / “Stop” / “Pause”</strong><span>Guided walk navigation</span></div>
+        <div class="vcmd"><strong>“Kannada” / “Hindi” / “Telugu” / “Tamil” / “English”</strong><span>Instant voice language switch</span></div>
+        <div class="vcmd"><strong>Ask any question</strong><span>e.g., “Is there a knife on the bed?”</span></div>
+      </div>
+    </div>
+
+    <button id="btnStartVoiceMode" type="button" class="btn primary voice-activate-btn">
+      🎙️ Start Drishti Voice Mode
+    </button>
+  </div>
+</div>
+
+<!-- Floating Tactile Voice Button (always accessible) -->
+<button id="btnVoiceFloat" class="voice-float-btn" type="button" aria-label="Tap to speak command or ask question" title="Tap anywhere or press M to speak">
+  <span class="voice-float-icon">🎙️</span>
+  <span class="voice-float-text">Tap to Speak</span>
+</button>
+
+<header class="top">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><path d="M2 16s5-9 14-9 14 9 14 9-5 9-14 9S2 16 2 16z" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="16" cy="16" r="5" fill="currentColor"/></svg>
+    <div><h1>Drishti</h1><p>Guided walk · Live obstacle awareness</p></div>
+  </div>
+  <div class="top-right">
+    <button id="btnHeaderTestVoice" class="btn voice-test-btn" type="button" aria-label="Test voice in selected language" title="Click to test voice in selected language">🔊 Test Voice</button>
+    <span id="status" class="pill" role="status" aria-live="polite">Connecting…</span>
+    <label class="sr-only" for="language">Language</label>
+    <select id="language" aria-label="Language"></select>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Sections">
+  <button role="tab" id="tab-vision" aria-controls="panel-vision" aria-selected="true">Vision</button>
+  <button role="tab" id="tab-chat" aria-controls="panel-chat" aria-selected="false">Ask Drishti</button>
+  <button role="tab" id="tab-settings" aria-controls="panel-settings" aria-selected="false">Settings</button>
+</nav>
+
+<main id="main">
+<!-- ===================== VISION ===================== -->
+<section id="panel-vision" role="tabpanel" aria-labelledby="tab-vision" class="panel">
+  <div class="vision-grid">
+    <div class="left">
+      <div id="stage" class="stage" aria-label="Camera view">
+        <video id="video" playsinline muted autoplay></video>
+        <img id="still" alt="Selected photo" hidden>
+        <canvas id="overlay" aria-hidden="true"></canvas>
+        <div id="stageEmpty" class="stage-empty">
+          <p>Camera is off</p>
+          <button id="btnCamera" class="btn primary">Start camera</button>
+        </div>
+        <div id="scanning" class="scanning" hidden><span></span>Analyzing…</div>
+      </div>
+
+      <div class="modes" role="radiogroup" aria-label="Assist mode" id="modes"></div>
+
+      <div class="ask">
+        <label for="userPrompt" class="sr-only">Optional question about the scene</label>
+        <input id="userPrompt" type="text" placeholder="Optional question, e.g. “Is the pathway clear?”" autocomplete="off">
+        <button id="btnMicPrompt" class="btn icon" aria-label="Speak your question" title="Speak your question (M)">🎤</button>
+      </div>
+
+      <div class="actions">
+        <button id="btnAnalyze" class="btn primary big" title="Analyze (A)">Analyze now</button>
+        <button id="btnAuto" class="btn big" aria-pressed="false" title="Auto-scan (S)">Auto-scan: off</button>
+        <label class="btn big file" title="Use a photo instead of the camera">Upload photo<input id="fileInput" type="file" accept="image/*" hidden></label>
+        <button id="btnStopCam" class="btn" hidden>Stop camera</button>
+      </div>
+
+      <section class="walk-card" aria-labelledby="walkTitle">
+        <div class="walk-heading">
+          <div>
+            <h2 id="walkTitle">Guided walk</h2>
+            <p class="note">Keep the camera facing the path ahead. Drishti speaks the detected hazard and a suggested next action in your selected language.</p>
+          </div>
+          <span id="walkState" class="pill" data-state="off">Not started</span>
+        </div>
+        <div class="walk-actions">
+          <button id="btnWalkStart" class="btn primary big">Start guided walk</button>
+          <button id="btnWalkPause" class="btn big" disabled>Pause</button>
+          <button id="btnWalkEnd" class="btn big" disabled>End walk</button>
+        </div>
+        <p id="walkHelp" class="note" role="status">Starting a walk turns on repeated camera scans and spoken safety guidance. It does not provide GPS turn-by-turn navigation.</p>
+        <div class="detector-legend" aria-label="Detection categories">
+          <span>🚧 Obstacles</span><span>🚗 Vehicles</span><span>🚶 People</span><span>🐾 Animals</span>
+        </div>
+      </section>
+    </div>
+
+    <div class="right">
+      <div id="result" class="result idle" aria-live="polite" aria-atomic="false">
+        <div class="empty">
+          <h2>Ready</h2>
+          <p>Start the camera, choose a mode and press <kbd>A</kbd> or “Analyze now”. Results are spoken aloud.</p>
+        </div>
+      </div>
+      <div class="row">
+        <button id="btnRepeat" class="btn" title="Repeat last alert (R)">🔁 Repeat</button>
+        <button id="btnStop" class="btn" title="Stop speaking (Esc)">⏹ Stop speaking</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== CHAT ===================== -->
+<section id="panel-chat" role="tabpanel" aria-labelledby="tab-chat" class="panel" hidden>
+  <div class="chat-wrap">
+    <div id="chatLog" class="chat-log" role="log" aria-live="polite" aria-label="Conversation">
+      <div class="msg model"><div class="bubble">Hello, I'm Drishti. Ask me about your surroundings — for example “What is in front of me?” or “Where is the door?”</div></div>
+    </div>
+    <div id="chips" class="chips" aria-label="Suggested questions"></div>
+    <form id="chatForm" class="chat-form" autocomplete="off">
+      <label class="check"><input type="checkbox" id="chatWithFrame"> Include camera view</label>
+      <div class="ask">
+        <label for="chatInput" class="sr-only">Your message</label>
+        <input id="chatInput" type="text" placeholder="Type or speak your question…">
+        <button type="button" id="btnMicChat" class="btn icon" aria-label="Speak your question" title="Speak (M)">🎤</button>
+        <button type="submit" class="btn primary">Send</button>
+      </div>
+      <button type="button" id="btnClearChat" class="linkbtn">Clear conversation</button>
+    </form>
+  </div>
+</section>
+
+<!-- ===================== SETTINGS ===================== -->
+<section id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" class="panel" hidden>
+  <form class="settings" onsubmit="return false">
+    <fieldset><legend>Connection</legend>
+      <label for="apiBase">Backend URL</label>
+      <input id="apiBase" type="url" placeholder="http://localhost:5000">
+      <div class="row"><button type="button" id="btnTest" class="btn">Test connection</button><span id="testOut" role="status"></span></div>
+      <dl id="healthInfo" class="kv"></dl>
+    </fieldset>
+    <fieldset><legend>Speech</legend>
+      <label class="check"><input type="checkbox" id="autoSpeak"> Speak results automatically</label>
+      <label for="engine">Voice engine</label>
+      <select id="engine"><option value="server">Server (Google TTS, falls back to device)</option><option value="device">Device voice (fastest)</option></select>
+      <label for="voice">Voice</label>
+      <select id="voice"><option value="neutral">Neutral</option><option value="female">Female</option><option value="male">Male</option></select>
+      <label for="rate">Speech speed <output id="rateOut"></output></label>
+      <input id="rate" type="range" min="0.6" max="1.6" step="0.05">
+      <button type="button" id="btnTestVoice" class="btn">Test voice</button>
+    </fieldset>
+    <fieldset><legend>Scanning</legend>
+      <label for="interval">Auto-scan interval <output id="intervalOut"></output></label>
+      <input id="interval" type="range" min="2" max="15" step="1">
+      <label class="check"><input type="checkbox" id="vibrate"> Vibrate on hazards (phones)</label>
+      <label class="check"><input type="checkbox" id="quietClear"> In auto-scan, stay silent when the path is clear</label>
+    </fieldset>
+    <fieldset><legend>Display</legend>
+      <label class="check"><input type="checkbox" id="contrast"> Extra-high contrast</label>
+      <label for="fontSize">Text size <output id="fontOut"></output></label>
+      <input id="fontSize" type="range" min="90" max="150" step="10">
+    </fieldset>
+    <fieldset><legend>Keyboard shortcuts</legend>
+      <ul class="keys">
+        <li><kbd>A</kbd> Analyze</li><li><kbd>S</kbd> Auto-scan on/off</li><li><kbd>1</kbd>–<kbd>4</kbd> Mode</li>
+        <li><kbd>M</kbd> Speak a question</li><li><kbd>R</kbd> Repeat alert</li><li><kbd>Esc</kbd> Stop speaking</li>
+      </ul>
+    </fieldset>
+  </form>
+</section>
+</main>
+
+<div id="toast" class="toast" role="alert" hidden></div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

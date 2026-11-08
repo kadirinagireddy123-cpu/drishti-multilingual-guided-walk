@@ -76,10 +76,46 @@ def create_app() -> FastAPI:
     app.include_router(info_router, prefix="/api")
     app.include_router(transcribe_router, prefix="/api")
 
-    _frontend_dir = _BACKEND_DIR.parent / "frontend"
-    if _frontend_dir.exists():
-        from fastapi.staticfiles import StaticFiles
-        app.mount("/", StaticFiles(directory=str(_frontend_dir), html=True), name="frontend")
+    from fastapi.responses import HTMLResponse, FileResponse
+    from fastapi.staticfiles import StaticFiles
+
+    _ROOT_DIR = _BACKEND_DIR.parent.parent
+    candidates = [
+        _BACKEND_DIR / "static",
+        _BACKEND_DIR.parent / "frontend",
+        _ROOT_DIR / "public",
+        _ROOT_DIR / "drishti-build" / "frontend",
+        Path("static"),
+        Path("public"),
+        Path("frontend"),
+    ]
+    frontend_dir = None
+    for cand in candidates:
+        if cand.exists() and (cand / "index.html").exists():
+            frontend_dir = cand
+            break
+
+    if frontend_dir:
+        js_dir = frontend_dir / "js"
+        if js_dir.exists():
+            app.mount("/js", StaticFiles(directory=str(js_dir)), name="js")
+
+        @app.get("/", response_class=HTMLResponse)
+        async def serve_root():
+            index_file = frontend_dir / "index.html"
+            return HTMLResponse(content=index_file.read_text(encoding="utf-8"))
+
+        @app.get("/index.html", response_class=HTMLResponse)
+        async def serve_index_html():
+            index_file = frontend_dir / "index.html"
+            return HTMLResponse(content=index_file.read_text(encoding="utf-8"))
+
+        @app.get("/styles.css")
+        async def serve_styles():
+            css_file = frontend_dir / "styles.css"
+            if css_file.exists():
+                return FileResponse(str(css_file), media_type="text/css")
+            return JSONResponse(status_code=404, content={"error": "styles.css not found"})
 
     @app.exception_handler(404)
     async def custom_404_handler(request: Request, exc):
